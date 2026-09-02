@@ -1,6 +1,10 @@
+import json
 from typing import Callable
 
-amount_money = 1000.00
+
+def create_json(file_name: str, data: dict[str, float]) -> None:
+    with open(file_name, "w") as file:
+        json.dump(data, file, ensure_ascii=False, indent=4)
 
 
 def request_pin_code() -> None:
@@ -58,13 +62,18 @@ def balance(amount_money: float) -> float:
     return amount_money
 
 
-def main(amount_money: float) -> None:
+def main() -> None:
     is_authorized: bool = False
     operation: dict[int, Callable[[float], float]] = {
         1: request_money,
         2: put_money,
         3: balance,
     }
+    amount_money: float = 0.0
+
+    with open("balance.json", "r") as file:
+        balance_json = json.load(file)
+        amount_money = balance_json["amount_money"]
 
     while True:
         if not is_authorized:
@@ -96,6 +105,17 @@ def main(amount_money: float) -> None:
 
         amount_money = operation[user_request](amount_money)
 
+        with open("balance.json", "w") as file:
+            balance_dict = {
+                "amount_money": amount_money,
+            }
+            json.dump(balance_dict, file, indent=4)
+
 
 if __name__ == '__main__':
-    main(amount_money=amount_money)
+    # data = {
+    #     "amount_money": 1000,
+    # }
+    # file_name = 'balance.json'
+    # create_json(file_name, data)
+    main()
