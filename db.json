@@ -1,0 +1,17 @@
+[
+    {
+        "id": 1,
+        "amount_money": 1000,
+        "pin_code": "1234"
+    },
+    {
+        "id": 2,
+        "amount_money": 1000.0,
+        "pin_code": "4321"
+    },
+    {
+        "id": 3,
+        "amount_money": 5000,
+        "pin_code": "6789"
+    }
+]

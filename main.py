@@ -1,5 +1,5 @@
 import json
-from typing import Callable
+from typing import Callable, Any
 
 
 def create_json(file_name: str, data: dict[str, float]) -> None:
@@ -7,10 +7,29 @@ def create_json(file_name: str, data: dict[str, float]) -> None:
         json.dump(data, file, ensure_ascii=False, indent=4)
 
 
-def request_pin_code() -> None:
-    pin_code = input("Введите ваш пин-код: ")
-    if pin_code.isdigit() and len(pin_code) == 4:
-        return
+def request_id() -> dict[str, Any] | None:
+    user_id = int(input("Введите ваш id: "))
+
+    if not isinstance(user_id, int) or user_id < 0:
+        raise ValueError("Неверный id")
+
+    with open("db.json", "r") as file:
+        db_json = json.load(file)
+
+    for user in db_json:
+        if user_id == user["id"]:
+            return user
+
+    raise ValueError("Пользователь не найден")
+
+
+def request_pin_code(pin_code) -> None:
+    user_pin_code = input("Введите ваш пин-код: ")
+
+    if user_pin_code.isdigit() and len(user_pin_code) == 4:
+        if user_pin_code == pin_code:
+            return
+        raise ValueError("Неверный пин-код")
     raise ValueError("Пин-код должен состоять из 4 цифр")
 
 
@@ -69,16 +88,16 @@ def main() -> None:
         2: put_money,
         3: balance,
     }
-    amount_money: float = 0.0
-
-    with open("balance.json", "r") as file:
-        balance_json = json.load(file)
-        amount_money = balance_json["amount_money"]
 
     while True:
+
         if not is_authorized:
             try:
-                request_pin_code()
+                user = request_id()
+                pin_code = user["pin_code"]
+                amount_money = user["amount_money"]
+
+                request_pin_code(pin_code)
                 is_authorized = True
             except ValueError as e:
                 print(e)
@@ -104,18 +123,36 @@ def main() -> None:
             continue
 
         amount_money = operation[user_request](amount_money)
+        user["amount_money"] = amount_money
 
-        with open("balance.json", "w") as file:
-            balance_dict = {
-                "amount_money": amount_money,
-            }
-            json.dump(balance_dict, file, indent=4)
+        with open("db.json", "r") as file:
+            db_json = json.load(file)
+            for i, u in enumerate(db_json):
+                if user["id"] == u["id"]:
+                    db_json[i] = user
+
+        with open("db.json", "w") as file:
+            json.dump(db_json, file, indent=4)
 
 
 if __name__ == '__main__':
-    # data = {
-    #     "amount_money": 1000,
-    # }
-    # file_name = 'balance.json'
-    # create_json(file_name, data)
+    # users = [
+    #     {
+    #         "id": 1,
+    #         "amount_money": 1000,
+    #         "pin_code": "1234",
+    #     },
+    #     {
+    #         "id": 2,
+    #         "amount_money": 2000,
+    #         "pin_code": "4321",
+    #     },
+    #     {
+    #         "id": 3,
+    #         "amount_money": 5000,
+    #         "pin_code": "6789",
+    #     }
+    # ]
+    # file_name = 'db.json'
+    # create_json(file_name, users)
     main()
