@@ -2,6 +2,38 @@ import json
 from typing import Callable, Any
 
 
+class User:
+
+    def __init__(self, first_name,
+                 last_name,
+                 patronymic=None,
+                 bank_account_number: list = None,
+                 cars: list = None) -> None:
+        self._first_name: str = first_name
+        self._patronymic: str = patronymic
+        self._last_name: str = last_name
+        self._bank_accounts: list[BankAccount] = bank_account_number or []
+        self._cards: list[Card] = bank_account_number or []
+
+
+class Card:
+
+    def __init__(self, card_holder: str, pin: str):
+        self._card_number = None
+        self._expiration_date = None
+        self._card_holder = card_holder
+        self._cvv = None
+        self._bank_account = None
+        self._pin = pin
+
+
+class BankAccount:
+    def __init__(self):
+        self.account_number = None
+        self.balance = None
+        self.type = None
+
+
 def create_json(file_name: str, data: dict[str, float]) -> None:
     with open(file_name, "w") as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
