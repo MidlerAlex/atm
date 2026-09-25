@@ -2,13 +2,6 @@ import json
 from typing import Callable, Any
 
 
-def transfer(
-        source: BankAccount,
-        destination: BankAccount,
-        amount: float,
-) -> None:
-    pass
-
 def create_json(file_name: str, data: dict[str, float]) -> None:
     with open(file_name, "w") as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
@@ -95,6 +88,7 @@ def main() -> None:
         2: put_money,
         3: balance,
     }
+    current_bank_account = None
 
     while True:
 
@@ -102,13 +96,25 @@ def main() -> None:
             try:
                 user = request_id()
                 pin_code = user["pin_code"]
-                amount_money = user["amount_money"]
 
                 request_pin_code(pin_code)
                 is_authorized = True
             except ValueError as e:
                 print(e)
                 continue
+        if current_bank_account is None:
+            print()
+            print("Выберете номер счета для проведения операций:")
+
+            user_bank_accounts = user["bank_accounts"]
+            for number, bank_account in enumerate(user_bank_accounts, 1):
+                print(f"{number}. Номер счета: {bank_account["id"]}, баланс: {bank_account['balance']}")
+
+            print()
+            selected_bank_account = user_bank_accounts[int(input("Укажите номер счета: ")) - 1]
+
+            current_bank_account = selected_bank_account
+
         print("Доступные операции:\n 1 - Снятие со счета\n 2 - Пополнение счета\n 3 - Баланс\n 0 - Завершить программу")
         print()
 
@@ -129,8 +135,9 @@ def main() -> None:
             print()
             continue
 
-        amount_money = operation[user_request](amount_money)
-        user["amount_money"] = amount_money
+        amount_money = operation[user_request](current_bank_account['balance'])
+        current_bank_account["balance"] = amount_money
+        user.update(current_bank_account)
 
         with open("db.json", "r") as file:
             db_json = json.load(file)

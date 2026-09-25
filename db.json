@@ -1,17 +1,44 @@
 [
     {
         "id": 1,
-        "amount_money": 1000,
-        "pin_code": "1234"
+        "pin_code": "1234",
+        "bank_accounts": [
+            {
+                "id": "12456789",
+                "balance": 1000
+            },
+            {
+                "id": "987654321",
+                "balance": 1200
+            }
+        ]
     },
     {
         "id": 2,
-        "amount_money": 1000.0,
-        "pin_code": "4321"
+        "pin_code": "4321",
+        "bank_accounts": [
+            {
+                "id": "22456789",
+                "balance": 2000
+            },
+            {
+                "id": "287654321",
+                "balance": 2200
+            }
+        ]
     },
     {
         "id": 3,
-        "amount_money": 5000,
-        "pin_code": "6789"
+        "pin_code": "6789",
+        "bank_accounts": [
+            {
+                "id": "23456789",
+                "balance": 3000
+            },
+            {
+                "id": "237654321",
+                "balance": 3200
+            }
+        ]
     }
 ]
