@@ -5,7 +5,7 @@
         "bank_accounts": [
             {
                 "id": "12456789",
-                "balance": 1000
+                "balance": 23.0
             },
             {
                 "id": "987654321",

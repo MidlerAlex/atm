@@ -1,10 +1,21 @@
+import os
 import json
 from typing import Callable, Any
 
+"""
+Интерфейс - диалог, вызывать логику
+Класс диалог
+Привет
+Вставь карту
+[Логика] Проверить карту
+Если ок - следующий вопрос
+База данных
+Логика
+проверяет карту
 
-def create_json(file_name: str, data: dict[str, float]) -> None:
-    with open(file_name, "w") as file:
-        json.dump(data, file, ensure_ascii=False, indent=4)
+Создать админский код
+Создать код диалога
+"""
 
 
 def request_id() -> dict[str, Any] | None:
@@ -81,92 +92,121 @@ def balance(amount_money: float) -> float:
     return amount_money
 
 
-def main() -> None:
-    is_authorized: bool = False
-    operation: dict[int, Callable[[float], float]] = {
+"""
+1. Завел флаг авторизации, список операций, текущий счет - Подготовка
+2. Проверка авторизации. Если нет авторизации, то авторизует: 
+    Спрашивает пин, проверяет пин, авторизует
+    иначе сообщает об ошибке и пытает авторизоваться снова - Авторизация
+3. Выбор счета. Если не выбран, то показать счета, проверить, запоминание в переменную
+4. Меню. Показать меню, спросить номер операции
+5.Выполнить операцию, вызвать метод связанный с номером. Выполнение
+6. Сохранить изменения. Прочитать db.json, найти пользователя, сохранить изменения
+"""
+
+
+def authorize() -> dict[str, Any]:
+    while True:
+        try:
+            user = request_id()
+            pin_code = user["pin_code"]
+            request_pin_code(pin_code)
+            return user
+        except ValueError:
+            continue
+
+
+def get_operation() -> dict[int, Callable[[float], float]]:
+    return {
         1: request_money,
         2: put_money,
         3: balance,
     }
-    current_bank_account = None
+
+
+def choice_bank_account(current_bank_account: str | None, user) -> str:
+    if current_bank_account is None:
+        print()
+        print("Выберете номер счета для проведения операций:")
+
+        user_bank_accounts = user["bank_accounts"]
+        for number, bank_account in enumerate(user_bank_accounts, 1):
+            print(f"{number}. Номер счета: {bank_account["id"]}, баланс: {bank_account['balance']}")
+
+        print()
+        selected_bank_account = user_bank_accounts[int(input("Укажите номер счета: ")) - 1]
+
+        return selected_bank_account
+
+    return current_bank_account
+
+
+def choice_operation(operation: dict[int, Callable[[float], float]]) -> int:
+    print("Доступные операции:\n 1 - Снятие со счета\n 2 - Пополнение счета\n 3 - Баланс\n 0 - Завершить программу")
+    print()
 
     while True:
-
-        if not is_authorized:
-            try:
-                user = request_id()
-                pin_code = user["pin_code"]
-
-                request_pin_code(pin_code)
-                is_authorized = True
-            except ValueError as e:
-                print(e)
-                continue
-        if current_bank_account is None:
-            print()
-            print("Выберете номер счета для проведения операций:")
-
-            user_bank_accounts = user["bank_accounts"]
-            for number, bank_account in enumerate(user_bank_accounts, 1):
-                print(f"{number}. Номер счета: {bank_account["id"]}, баланс: {bank_account['balance']}")
-
-            print()
-            selected_bank_account = user_bank_accounts[int(input("Укажите номер счета: ")) - 1]
-
-            current_bank_account = selected_bank_account
-
-        print("Доступные операции:\n 1 - Снятие со счета\n 2 - Пополнение счета\n 3 - Баланс\n 0 - Завершить программу")
-        print()
-
         try:
             user_request = int(input("Введите номер операции: "))
-
 
         except ValueError:
             print("Требуется указать цифру операции")
             continue
 
         if user_request == 0:
-            print("Работа завершена")
-            return
+            return 0
 
         if user_request not in operation:
             print("Нет такой операции")
             print()
             continue
 
-        amount_money = operation[user_request](current_bank_account['balance'])
-        current_bank_account["balance"] = amount_money
-        user.update(current_bank_account)
+        return user_request
 
-        with open("db.json", "r") as file:
-            db_json = json.load(file)
-            for i, u in enumerate(db_json):
-                if user["id"] == u["id"]:
-                    db_json[i] = user
 
-        with open("db.json", "w") as file:
-            json.dump(db_json, file, indent=4)
+def execute_operation(operation: dict[int, Callable[[float], float]], user_request, current_bank_account) -> float:
+    balance = current_bank_account['balance']
+    executed_operation = operation[user_request]
+    amount_money = executed_operation(balance)
+    return amount_money
+
+
+def save(user, current_bank_account, balance) -> None:
+    change_user = user
+    change_bank_account = current_bank_account
+    new_balance = balance
+    for bank_account in change_user["bank_accounts"]:
+        if bank_account['id'] == change_bank_account["id"]:
+            bank_account["balance"] = new_balance
+
+    temp_db_json = "db_tmp.json"
+
+    with open("db.json", "r") as file:
+        db_json = json.load(file)
+
+    for i, u in enumerate(db_json):
+        if user["id"] == u["id"]:
+            db_json[i] = user
+
+    with open(temp_db_json, "w") as file:
+        json.dump(db_json, file, indent=4)
+
+    os.replace(temp_db_json, "db.json")
+
+
+def main() -> None:
+    user: dict[str, Any] = authorize()
+    operation: dict[int, Callable[[float], float]] = get_operation()
+    current_bank_account = None
+    if current_bank_account is None:
+        current_bank_account = choice_bank_account(current_bank_account, user)
+
+    user_request = choice_operation(operation)
+    while user_request:
+        balance = execute_operation(operation, user_request, current_bank_account)
+        save(user, current_bank_account, balance)
+        user_request = choice_operation(operation)
+    print("Работа завершена!")
 
 
 if __name__ == '__main__':
-    # users = [
-    #     {
-    #         "id": 1,
-    #         "amount_money": 1000,
-    #         "pin_code": "1234",
-    #     },
-    #     {
-    #         "id": 2,
-    #         "amount_money": 2000,
-    #         "pin_code": "4321",
-    #     },
-    #     {
-    #         "id": 3,
-    #         "amount_money": 5000,
-    #         "pin_code": "6789",
-    #     }
-    # ]
-    # file_name = 'db.json'
-    # create_json(file_name, users)
     main()
