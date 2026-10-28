@@ -18,30 +18,67 @@ from typing import Callable, Any
 """
 
 
+def get_clients(client_id=None) -> dict[str, Any] | None:
+    with open("db.json", "r") as file:
+        db_json = json.load(file)
+
+    if client_id is not None:
+        for client in db_json:
+            if client["id"] == client_id:
+                return client
+
+        return None
+
+    return db_json
+
+
+def request_card_number(client: dict[str, Any]) -> str | None:
+    card_number = input("Введите номер банковской карты: ")
+
+    while True:
+        if not card_number.isdigit():
+            print("Номер должен состоять только из цифр 0-9")
+        else:
+            for card in client["cards"]:
+                if card["number"] == card_number:
+                    request_pin_code(card["pin_code"])
+                    return card
+
+            print("Неверный номер карты")
+
+        card_number = input("Введите номер банковской карты: ")
+
+
 def request_id() -> dict[str, Any] | None:
     user_id = int(input("Введите ваш id: "))
 
     if not isinstance(user_id, int) or user_id < 0:
         raise ValueError("Неверный id")
 
-    with open("db.json", "r") as file:
-        db_json = json.load(file)
+    client = get_clients(user_id)
+    if not client:
+        raise ValueError("Пользователь не найден")
+    return client
 
-    for user in db_json:
-        if user_id == user["id"]:
-            return user
 
-    raise ValueError("Пользователь не найден")
+def check_pin_code_condition(user_pin_code: str, pin_code: str) -> bool:
+    return (user_pin_code.isdigit()
+            and len(user_pin_code) == 4
+            and user_pin_code == pin_code)
 
 
 def request_pin_code(pin_code) -> None:
-    user_pin_code = input("Введите ваш пин-код: ")
+    max_attempt = 3
 
-    if user_pin_code.isdigit() and len(user_pin_code) == 4:
-        if user_pin_code == pin_code:
-            return
-        raise ValueError("Неверный пин-код")
-    raise ValueError("Пин-код должен состоять из 4 цифр")
+    while max_attempt > 0:
+        user_pin_code = input("Введите ваш пин-код: ")
+
+        if not check_pin_code_condition(user_pin_code, pin_code):
+            print("Неверный пин-код")
+            max_attempt -= 1
+            continue
+        return
+    raise ValueError("Превышен лимит ввода пин-кода")
 
 
 def request_money(amount_money: float) -> float:
@@ -92,25 +129,13 @@ def balance(amount_money: float) -> float:
     return amount_money
 
 
-"""
-1. Запросить карту
-2. Вытащить по найденной карте пользователя и авторизовать его (проверка пина). 
-Переделать request_id
-"""
-
-
-def request_card() -> dict[str, Any] | None:
-    pass
-
-
 def authorize() -> dict[str, Any]:
     while True:
         try:
-            user = request_id()
-            pin_code = user["pin_code"]
-            request_pin_code(pin_code)
-            return user
+            client = request_id()
+            return client
         except ValueError:
+
             continue
 
 
@@ -126,21 +151,26 @@ def choice_bank_account(current_bank_account: str | None, user) -> str:
     if current_bank_account is None:
         print()
         print("Выберете номер счета для проведения операций:")
+        while True:
+            user_bank_accounts = user["bank_accounts"]
+            for number, bank_account in enumerate(user_bank_accounts, 1):
+                print(f"{number}. Номер счета: {bank_account["id"]}, баланс: {bank_account['balance']}")
 
-        user_bank_accounts = user["bank_accounts"]
-        for number, bank_account in enumerate(user_bank_accounts, 1):
-            print(f"{number}. Номер счета: {bank_account["id"]}, баланс: {bank_account['balance']}")
+            print()
+            try:
+                selected_bank_account = user_bank_accounts[int(input("Укажите номер счета: ")) - 1]
 
-        print()
-        selected_bank_account = user_bank_accounts[int(input("Укажите номер счета: ")) - 1]
-
-        return selected_bank_account
+                return selected_bank_account
+            except IndexError:
+                print("Укажите корректный номер банковского счета. Требуется указать цифру до точки")
+                continue
 
     return current_bank_account
 
 
 def choice_operation(operation: dict[int, Callable[[float], float]]) -> int:
-    print("Доступные операции:\n 1 - Снятие со счета\n 2 - Пополнение счета\n 3 - Баланс\n 0 - Завершить программу")
+    print(
+        "Доступные операции:\n 1 - Снятие со счета\n 2 - Пополнение счета\n 3 - Баланс\n 0 - Вернуться в главное меню")
     print()
 
     while True:
@@ -162,7 +192,10 @@ def choice_operation(operation: dict[int, Callable[[float], float]]) -> int:
         return user_request
 
 
-def execute_operation(operation: dict[int, Callable[[float], float]], user_request, current_bank_account) -> float:
+def execute_operation(operation: dict[int, Callable[[float], float]],
+                      user_request,
+                      current_bank_account
+                      ) -> float:
     balance = current_bank_account['balance']
     executed_operation = operation[user_request]
     amount_money = executed_operation(balance)
@@ -192,18 +225,71 @@ def save(user, current_bank_account, balance) -> None:
     os.replace(temp_db_json, "db.json")
 
 
-def main() -> None:
-    user: dict[str, Any] = authorize()
-    operation: dict[int, Callable[[float], float]] = get_operation()
-    current_bank_account = None
-    if current_bank_account is None:
-        current_bank_account = choice_bank_account(current_bank_account, user)
+def menu() -> int:
+    print("Выберите вид операций: ")
+    print("1 - Операции по карте")
+    print("2 - Операции с банковскими счетами")
+    print("0 - Завершить работу")
+    while True:
+        try:
+            user_request = int(input("Введите номер операции: "))
 
-    user_request = choice_operation(operation)
+        except ValueError:
+            print("Требуется указать цифру операции")
+            continue
+
+        if user_request == 0:
+            return 0
+
+        if user_request > 2:
+            print("Нет такой операции")
+            continue
+
+        return user_request
+
+
+def bank_account_flow(client, operation, input_current_bank_account=None):
+    current_bank_account = input_current_bank_account
+    if current_bank_account is None:
+        current_bank_account = choice_bank_account(current_bank_account, client)
+
+    client_request = choice_operation(operation)
+    while client_request:
+        balance = execute_operation(operation, client_request, current_bank_account)
+        save(client, current_bank_account, balance)
+        client_request = choice_operation(operation)
+
+
+def card_flow(client, card, operation):
+    bank_account_id = card["bank_account_id"]
+    current_bank_account = None
+
+    for bank_account in client["bank_accounts"]:
+        if bank_account["id"] == bank_account_id:
+            current_bank_account = bank_account
+
+    bank_account_flow(client, operation, current_bank_account)
+
+
+def main() -> None:
+    client: dict[str, Any] = authorize()
+    try:
+        card = request_card_number(client)
+    except ValueError as value_error:
+        print(str(value_error))
+        print("Обратитесь позже")
+        return
+
+    operation: dict[int, Callable[[float], float]] = get_operation()
+    user_request = menu()
     while user_request:
-        balance = execute_operation(operation, user_request, current_bank_account)
-        save(user, current_bank_account, balance)
-        user_request = choice_operation(operation)
+        if user_request == 1:
+            card_flow(client, card, operation)
+
+        elif user_request == 2:
+            bank_account_flow(client, operation)
+
+        user_request = menu()
     print("Работа завершена!")
 
 
