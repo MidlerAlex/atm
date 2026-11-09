@@ -2,21 +2,6 @@ import os
 import json
 from typing import Callable, Any
 
-"""
-Интерфейс - диалог, вызывать логику
-Класс диалог
-Привет
-Вставь карту
-[Логика] Проверить карту
-Если ок - следующий вопрос
-База данных
-Логика
-проверяет карту
-
-Создать админский код
-Создать код диалога
-"""
-
 
 def get_clients(client_id=None) -> dict[str, Any] | None:
     with open("db.json", "r") as file:
@@ -81,9 +66,12 @@ def request_pin_code(pin_code) -> None:
     raise ValueError("Превышен лимит ввода пин-кода")
 
 
-def request_money(amount_money: float) -> float:
+def request_money(amount_money: float, input_amount: float | None = None) -> float:
     while True:
-        user_request = input("Введите сумму для снятия: ")
+        if input_amount is None:
+            user_request = input("Введите сумму для снятия: ")
+        else:
+            user_request = input_amount
         try:
             user_request = float(user_request)
 
@@ -103,9 +91,12 @@ def request_money(amount_money: float) -> float:
             return amount_money
 
 
-def put_money(amount_money: float) -> float:
+def put_money(amount_money: float, input_amount: float | None = None) -> float:
     while True:
-        user_request = input("Введите сумму для пополнения: ")
+        if input_amount is None:
+            user_request = input("Введите сумму для пополнения: ")
+        else:
+            user_request = input_amount
         try:
             user_request = float(user_request)
 
@@ -130,13 +121,16 @@ def balance(amount_money: float) -> float:
 
 
 def authorize() -> dict[str, Any]:
-    while True:
+    max_attempt = 3
+    while max_attempt > 0:
         try:
             client = request_id()
             return client
         except ValueError:
-
+            print("Ошибка авторизации")
+            max_attempt -= 1
             continue
+    raise ValueError("Исчерпан лимит попыток авторизации")
 
 
 def get_operation() -> dict[int, Callable[[float], float]]:
@@ -144,6 +138,8 @@ def get_operation() -> dict[int, Callable[[float], float]]:
         1: request_money,
         2: put_money,
         3: balance,
+        4: choose_card
+
     }
 
 
@@ -168,9 +164,25 @@ def choice_bank_account(current_bank_account: str | None, user) -> str:
     return current_bank_account
 
 
-def choice_operation(operation: dict[int, Callable[[float], float]]) -> int:
-    print(
-        "Доступные операции:\n 1 - Снятие со счета\n 2 - Пополнение счета\n 3 - Баланс\n 0 - Вернуться в главное меню")
+def choice_operation(operation: dict[int, Callable[[float], float]], entity_type: int) -> int:
+    """
+
+    :param operation: список доступных операций
+    :param entity_type: тип источник денег, 1 - банковская карта, 2 - банковский счет
+    :return:
+    """
+    bank_account_operation = "Доступные операции:\n 1 - Снятие со счета\n 2 - Пополнение счета\n 3 - Баланс\n 0 - Вернуться в главное меню"
+    card_operation = ("Доступные операции:"
+                      "\n 1 - Снятие с карты"
+                      "\n 2 - Пополнение карты"
+                      "\n 3 - Баланс"
+                      "\n 4 - Перевод на другую карту"
+                      "\n 5 - Перевод на банковский счет"
+                      "\n 0 - Вернуться в главное меню"
+                      )
+    operations = [card_operation, bank_account_operation]
+
+    print(operations[entity_type - 1])
     print()
 
     while True:
@@ -248,32 +260,112 @@ def menu() -> int:
         return user_request
 
 
-def bank_account_flow(client, operation, input_current_bank_account=None):
+def bank_account_flow(client,
+                      operation,
+                      chose_operation=None,
+                      input_current_bank_account=None,
+                      entity_type: int = 2):
     current_bank_account = input_current_bank_account
     if current_bank_account is None:
         current_bank_account = choice_bank_account(current_bank_account, client)
-
-    client_request = choice_operation(operation)
+    if chose_operation is None:
+        client_request = choice_operation(operation, entity_type)
+    else:
+        client_request = chose_operation
     while client_request:
         balance = execute_operation(operation, client_request, current_bank_account)
         save(client, current_bank_account, balance)
-        client_request = choice_operation(operation)
+        client_request = choice_operation(operation, entity_type)
 
 
-def card_flow(client, card, operation):
+def card_manager(client, primary_card, chose_operation, operation):
+    match chose_operation:
+        case 1 | 2 | 3:
+            card_flow(client, primary_card, operation, chose_operation)
+        case 4:
+            card = choose_card(client, primary_card)
+            primary_bank_account = get_card_bank_account(client, primary_card)
+            card_bank_account = get_card_bank_account(client, card)
+            user_request = input("Введите сумму для пополнения: ")
+
+            while True:
+                try:
+                    user_request = float(user_request)
+                    break
+                except ValueError:
+                    print("Требуется ввести число")
+                if user_request <= 0:
+                    print("Сумма должна быть положительной")
+
+                if primary_bank_account["balance"] < user_request:
+                    print("Не хватает средств")
+
+                user_request = input("Введите сумму для пополнения: ")
+
+            primary_balance = card_request_money(primary_bank_account['balance'], user_request)
+            card_balance = card_put_money(card_bank_account['balance'], user_request)
+            save(client, primary_bank_account, primary_balance)
+            save(client, card_bank_account, card_balance)
+
+
+def get_card_bank_account(client, card):
     bank_account_id = card["bank_account_id"]
     current_bank_account = None
 
     for bank_account in client["bank_accounts"]:
         if bank_account["id"] == bank_account_id:
             current_bank_account = bank_account
+    return current_bank_account
 
-    bank_account_flow(client, operation, current_bank_account)
+
+def card_flow(client, card, operation, chose_operation):
+    current_bank_account = get_card_bank_account(client, card)
+
+    bank_account_flow(client, operation, chose_operation, current_bank_account, 1)
+
+
+def choose_card(client, primary_card):
+    cards = card_list(client, primary_card)
+    if not cards:
+        return None
+    while True:
+        try:
+            card_id = int(input("Выберите порядковый номер карты: "))
+            return cards[card_id - 1]
+        except ValueError:
+            print("Ошбика при вводе порядкового номера")
+            continue
+
+
+def card_list(client: dict[str, Any], primary_card: dict[str, str]) -> list[dict[str, str]]:
+    cards = list(filter(lambda item: item != primary_card, client["cards"]))
+    if not cards:
+        print("Нет доступных карт")
+        return []
+    print("Список доступных карты: ")
+    for index, card in enumerate(cards, 1):
+        if primary_card['number'] != card["number"]:
+            print(f"{index} - {card['number']}")
+    return cards
+
+
+def card_request_money(amount_money: float, input_amount: float) -> float:
+    amount_money -= input_amount
+    print(f"Вы сняли со счета: {input_amount:.2f}")
+    print(f"Остаток по счету: {amount_money:.2f}")
+    return amount_money
+
+
+def card_put_money(amount_money: float, input_amount: float) -> float:
+    amount_money += input_amount
+    print(f"Вы пополнили счет на сумму: {input_amount:.2f}")
+    print(f"Остаток по счету: {amount_money:.2f}")
+    return amount_money
 
 
 def main() -> None:
-    client: dict[str, Any] = authorize()
     try:
+        client: dict[str, Any] = authorize()
         card = request_card_number(client)
     except ValueError as value_error:
         print(str(value_error))
@@ -284,8 +376,8 @@ def main() -> None:
     user_request = menu()
     while user_request:
         if user_request == 1:
-            card_flow(client, card, operation)
-
+            chose_operation = choice_operation(operation, user_request)
+            card_manager(client, card, chose_operation, operation)
         elif user_request == 2:
             bank_account_flow(client, operation)
 

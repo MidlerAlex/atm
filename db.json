@@ -4,22 +4,32 @@
         "bank_accounts": [
             {
                 "id": "12456789",
-                "balance": 1023.0
+                "balance": 23.0
             },
             {
                 "id": "987654321",
-                "balance": 1200
+                "balance": 1410.0
             },
             {
                 "id": "835478345783",
-                "balance": 467.0
+                "balance": 237.0
             }
         ],
         "cards": [
             {
-                "number": "123456677893453",
+                "number": "1111",
                 "pin_code": "1234",
                 "bank_account_id": "835478345783"
+            },
+            {
+                "number": "2222",
+                "pin_code": "4321",
+                "bank_account_id": "987654321"
+            },
+            {
+                "number": "333",
+                "pin_code": "4567",
+                "bank_account_id": "12456789"
             }
         ]
     },
@@ -34,6 +44,13 @@
             {
                 "id": "287654321",
                 "balance": 2200
+            }
+        ],
+        "cards": [
+            {
+                "number": "1111",
+                "pin_code": "1234",
+                "bank_account_id": "287654321"
             }
         ]
     },
