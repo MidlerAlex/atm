@@ -138,30 +138,31 @@ def get_operation() -> dict[int, Callable[[float], float]]:
         1: request_money,
         2: put_money,
         3: balance,
-        4: choose_card
+        4: choose_card,
+        5: transition_between_card_and_bank_account
 
     }
 
 
-def choice_bank_account(current_bank_account: str | None, user) -> str:
-    if current_bank_account is None:
+def choice_bank_account(current_bank_account: str | None, user) -> dict[str, Any]:
+    if current_bank_account is not None:
+        bank_accounts = list(filter(lambda x: x['id'] != current_bank_account, user["bank_accounts"]))
+        user["bank_accounts"] = bank_accounts
+    print()
+    print("Выберете номер счета для проведения операций:")
+    while True:
+        user_bank_accounts = user["bank_accounts"]
+        for number, bank_account in enumerate(user_bank_accounts, 1):
+            print(f"{number}. Номер счета: {bank_account["id"]}, баланс: {bank_account['balance']}")
+
         print()
-        print("Выберете номер счета для проведения операций:")
-        while True:
-            user_bank_accounts = user["bank_accounts"]
-            for number, bank_account in enumerate(user_bank_accounts, 1):
-                print(f"{number}. Номер счета: {bank_account["id"]}, баланс: {bank_account['balance']}")
+        try:
+            selected_bank_account = user_bank_accounts[int(input("Укажите номер счета: ")) - 1]
 
-            print()
-            try:
-                selected_bank_account = user_bank_accounts[int(input("Укажите номер счета: ")) - 1]
-
-                return selected_bank_account
-            except IndexError:
-                print("Укажите корректный номер банковского счета. Требуется указать цифру до точки")
-                continue
-
-    return current_bank_account
+            return selected_bank_account
+        except IndexError:
+            print("Укажите корректный номер банковского счета. Требуется указать цифру до точки")
+            continue
 
 
 def choice_operation(operation: dict[int, Callable[[float], float]], entity_type: int) -> int:
@@ -206,7 +207,7 @@ def choice_operation(operation: dict[int, Callable[[float], float]], entity_type
 
 def execute_operation(operation: dict[int, Callable[[float], float]],
                       user_request,
-                      current_bank_account
+                      current_bank_account,
                       ) -> float:
     balance = current_bank_account['balance']
     executed_operation = operation[user_request]
@@ -275,7 +276,7 @@ def bank_account_flow(client,
     while client_request:
         balance = execute_operation(operation, client_request, current_bank_account)
         save(client, current_bank_account, balance)
-        client_request = choice_operation(operation, entity_type)
+        return
 
 
 def card_manager(client, primary_card, chose_operation, operation):
@@ -283,29 +284,60 @@ def card_manager(client, primary_card, chose_operation, operation):
         case 1 | 2 | 3:
             card_flow(client, primary_card, operation, chose_operation)
         case 4:
-            card = choose_card(client, primary_card)
-            primary_bank_account = get_card_bank_account(client, primary_card)
-            card_bank_account = get_card_bank_account(client, card)
-            user_request = input("Введите сумму для пополнения: ")
+            transition_between_card_and_card(client, primary_card)
+        case 5:
+            transition_between_card_and_bank_account(client, primary_card)
 
-            while True:
-                try:
-                    user_request = float(user_request)
-                    break
-                except ValueError:
-                    print("Требуется ввести число")
-                if user_request <= 0:
-                    print("Сумма должна быть положительной")
 
-                if primary_bank_account["balance"] < user_request:
-                    print("Не хватает средств")
+def transition_between_card_and_bank_account(client, primary_card):
+    primary_bank_account = get_card_bank_account(client, primary_card)
+    bank_account = choice_bank_account(primary_bank_account, client)
+    user_request = input("Введите сумму для пополнения: ")
 
-                user_request = input("Введите сумму для пополнения: ")
+    while True:
+        try:
+            user_request = float(user_request)
+            break
+        except ValueError:
+            print("Требуется ввести число")
+        if user_request <= 0:
+            print("Сумма должна быть положительной")
 
-            primary_balance = card_request_money(primary_bank_account['balance'], user_request)
-            card_balance = card_put_money(card_bank_account['balance'], user_request)
-            save(client, primary_bank_account, primary_balance)
-            save(client, card_bank_account, card_balance)
+        if primary_bank_account["balance"] < user_request:
+            print("Не хватает средств")
+
+        user_request = input("Введите сумму для пополнения: ")
+
+    primary_balance = card_request_money(primary_bank_account['balance'], user_request)
+    put_money(bank_account["balance"], user_request)
+    save(client, bank_account, bank_account["balance"])
+    save(client, primary_bank_account, primary_balance)
+
+
+def transition_between_card_and_card(client, primary_card):
+    card = choose_card(client, primary_card)
+    primary_bank_account = get_card_bank_account(client, primary_card)
+    card_bank_account = get_card_bank_account(client, card)
+    user_request = input("Введите сумму для пополнения: ")
+
+    while True:
+        try:
+            user_request = float(user_request)
+            break
+        except ValueError:
+            print("Требуется ввести число")
+        if user_request <= 0:
+            print("Сумма должна быть положительной")
+
+        if primary_bank_account["balance"] < user_request:
+            print("Не хватает средств")
+
+        user_request = input("Введите сумму для пополнения: ")
+
+    primary_balance = card_request_money(primary_bank_account['balance'], user_request)
+    card_balance = card_put_money(card_bank_account['balance'], user_request)
+    save(client, primary_bank_account, primary_balance)
+    save(client, card_bank_account, card_balance)
 
 
 def get_card_bank_account(client, card):

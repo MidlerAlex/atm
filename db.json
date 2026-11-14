@@ -4,15 +4,15 @@
         "bank_accounts": [
             {
                 "id": "12456789",
-                "balance": 23.0
+                "balance": 243.0
             },
             {
                 "id": "987654321",
-                "balance": 1410.0
+                "balance": 1770.0
             },
             {
                 "id": "835478345783",
-                "balance": 237.0
+                "balance": 78.0
             }
         ],
         "cards": [
